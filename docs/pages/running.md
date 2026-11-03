@@ -8,75 +8,81 @@ nav_order: 4
 
 # Running tests
 ## Organization
-Tests are located in the `spec/` folder. They are organized into sub-folders and files, according to system type, specification and functional areas.
+Tests are located in the `test/` folder. They are organized into sub-folders and files, according to system type, specification and functional areas.
 
 ```
-% tree spec -d                          
-spec
+% tree test -d
+test
 ├── site          # tests for sites (equipment)
 │   ├── core      # tests covering core specification
 │   └── tlc       # tests for traffic light controllers
-├── supervisor    # tests for supervisor systems (experimental)
-└── support       # helper classes and other support files 
+└── supervisor    # tests for supervisor systems (experimental)
 ```
 
 ## Running Tests
 Note: Before running tests, be sure to set up your test [configuration]({{ site.baseurl}}{% link pages/configuring.md %}).
 
-The RSMP Validator is based on the RSpec testing tool, so you use the `rspec` command to run tests. You should be located in the root of the project folder when running test.
+The RSMP Validator uses the [sus](https://github.com/socketry/sus) testing framework. Use the `rsmp-validator run` command to run conformance tests. You should be located in the root of the project folder when running tests.
 
-Test a site, by running tests covering the core specification:
+Test a site by running tests covering the core specification, using the auto node feature to start a local TLC site automatically:
 
-```
-% bundle exec rspec spec/site/core
-Using test config config/gem_tlc.yaml
-Run options: exclude {:rsmp=>[unless relevant for 3.1.5]}
-....
-
-Finished in 1.01 seconds (files took 0.64491 seconds to load)
-4 examples, 0 failures
+```console
+% bundle exec rsmp-validator run test/site/core --site-config config/sites/gem_tlc.yaml --auto-site-config config/simulator/tlc.yaml
 ```
 
-In this example, the tests are running against a TLC emulator from the rsmp gem, running on the local machine, which is why the tests run in just about 1 second.
+To run all site tests:
 
+```console
+% bundle exec rsmp-validator run test/site --site-config config/sites/gem_tlc.yaml --auto-site-config config/simulator/tlc.yaml
+```
+
+See the [Auto Node]({{ site.baseurl}}{% link pages/auto.md %}) page for details on the auto node feature.
 
 ## Filtering Tests
-You can use rspec command line [options](https://rspec.info/) to filter which tests to run.
+You can pass one or more paths to the `rsmp-validator run` command to select which tests to run:
 
-If you want to store you selection for easy reuse, add them to a file name .rspec-local, in the root of the project folder. RSpec will automatically use the options. Example:
-
-```
-% cat .rspec-local
---pattern spec/site/*   # run tests in spec/site/
---exclude-pattern spec/site/unknown_status_spec.rb    # skip tests in this file
---tag ~programming           # exclude tests tagged with :programming
+```console
+% bundle exec rsmp-validator run test/site/core test/site/tlc/clock_spec.rb --site-config config/sites/gem_tlc.yaml --auto-site-config config/simulator/tlc.yaml
 ```
 
- .rspec-local is git ignored, and will therefore not be added to the repo. 
+You can override the configured Core and SXL versions for a run without editing the YAML config:
 
-You can also keep different configurations, and pick on when running tests, eg:
-
-```
-% bundle exec rspec --options my_rspec_options
+```console
+% bundle exec rsmp-validator run test/site --site-config config/sites/gem_tlc.yaml --core 3.3.0 --sxls tlc:1.3.0
 ```
 
-### Running tests again a local Ruby TLC site
-For trying out the specs, you can just the `rsmp` command from the rsmp gem to run a local Ruby TLC site. 
+Use a comma-separated `name:version` list to test with several SXLs:
 
-Because the validator by default listens on port 13111, use should tell the site to connect on this port. You can do this either by editing the configuration, or using the `supervisor` command line option, as shown below.
+```console
+% bundle exec rsmp-validator run test/site --site-config config/sites/gem_tlc.yaml --sxls tlc:1.3.0,vms:1.0.0
+```
 
-You can use short reconnect and timeout intervals in the config file, which will make the test quick to run.
+### Running tests against a local RSMP site
+
+There are two ways to test against a local RSMP site:
+
+#### Option 1: Auto Node Feature (Recommended for Development)
+
+Use the **auto node feature** to automatically start a local site to test. See the [Auto Node]({{ site.baseurl}}{% link pages/auto.md %}) page for details.
+
+#### Option 2: Manual RSMP Site (For Testing Real Equipment)
+
+Alternatively, you can manually start a local Ruby TLC site using the `rsmp` command from the rsmp gem.
+
+Because the validator by default listens on port 13111, you should tell the site to connect on this port. You can do this either by editing the configuration, or using the `supervisor` command line option, as shown below.
+
+You can use short reconnect and timeout intervals in the config file, which will make the tests quick to run.
 
 ```
-% cd rmsp
+% cd rsmp
 % bundle exec rsmp site --type tlc --json --config config/tlc.yaml --supervisors localhost:13111
 2020-01-01 23:38:48 UTC                           Starting site RN+SI0001
-2020-01-01 23:38:48 UTC                           Connecting to superviser at 127.0.0.1:12111
-2020-01-01 23:38:48 UTC                           No connection to supervisor at 127.0.0.1:12111
+2020-01-01 23:38:48 UTC                           Connecting to supervisor at 127.0.0.1:13111
+2020-01-01 23:38:48 UTC                           No connection to supervisor at 127.0.0.1:13111
 2020-01-01 23:38:48 UTC                           Will try to reconnect again every 0.1 seconds..
 ```
 
-Once it's running, you can run the validator site specs, and you will see the Ruby TLC site respond to e.g. request to switch signal plan:
+Once it's running, you can run the validator site tests and you will see the Ruby TLC site respond to requests, e.g. requests to switch signal plan:
 
 ```
 2020-01-01 23:38:54 UTC  6697976b5     -->  c776  Received CommandRequest {"mType":"rSMsg","type":"CommandRequest","ntsOId":"","xNId":"","cId":"TC","arg":[{"cCI":"M0002","cO":"setPlan","n":"status","v":"True"},{"cCI":"M0002","cO":"setPlan","n":"securityCode","v":"0000"},{"cCI":"M0002","cO":"setPlan","n":"timeplan","v":"2"}],"mId":"c77665c1-f7cc-4488-8bcb-f809939e0e20"}
@@ -86,31 +92,20 @@ Once it's running, you can run the validator site specs, and you will see the Ru
 See the [rsmp gem](https://github.com/rsmp-nordic/rsmp) documentation for details on how to run Ruby sites and supervisors.
 
 ### Alarms and Programming
-Testing alarms require some way to trigger them.
+Testing alarms requires some way to trigger them.
 
-There's not yet any way to trigger alarms directly via RSMP. But often you can program the equipment to raise an alarm when a specific input is activated. If that's the case, use the `alarm_activcation` item in the validator config to specify which input activates which alarm:
+There's not yet any way to trigger alarms directly via RSMP. But often you can program the equipment to raise an alarm when a specific input is activated. If that's the case, use the `alarm_triggers` item in the validator config to specify which input activates which alarm:
 
 ```yaml
-alarm_activation:
+alarm_triggers:
   A0302: 
     input: 7
     component: DL1
 ```
 
-Tests that rely on device programming are tagged with :programming. If the device cannot be programmed to raise alarm on input activation, you should skip tests that rely on this, by passing the `--tag ~programming` as an option to the `rspec` command:
-
-```
-% bundle exec rspec spec/site/ --tag ~programming
-```
- 
-## RSpec Helpers and Options
-The file `spec/spec_helper.rb` will be included automatically by RSpec, because the file `.rspec` has the following options:
-
-```yaml
---require spec_helper
-```
- 
-The file `spec/spec_helper.rb`and will in turn include the required dependencies, including the rsmp gem and files in `spec/support/`, which defines helper classes and methods.
+Tests that rely on device programming are tagged with `:programming`. You can skip them by passing the relevant test paths explicitly and excluding files you don't need.
 
 ## Git Ignores
-The file .gitignore is setup to ignore files and folders that typically use used for private configurations, including `config/private/` and all secrets*.yaml files in `config/`.
+The file `.gitignore` excludes `config/private/` and secrets sidecars throughout
+`config/`, including the site and supervisor folders. The bundled example secrets
+file is explicitly included.
